@@ -10,10 +10,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AddShoppingCart
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,33 +39,66 @@ import com.example.shopmagazine.presentation.viewModel.CatalogViewModel
 fun CatalogScreen(
     viewModel: CatalogViewModel = hiltViewModel()
 ) {
-    val sheetState = rememberModalBottomSheetState()
     val state by viewModel.state.collectAsState()
+    val sheetState = rememberModalBottomSheetState()
     var selectedProduct by remember { mutableStateOf<ProductEntity?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 1. Поиск
-        SearchBar(
-            query = state.searchQuery,
-            onQueryChange = viewModel::onSearchQueryChanged
-        )
-
-        Column(
+        // Ряд с поиском и кнопкой сортировки
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Список категорий (Мультивыбор)
-            CategoryFilterRow(
-                allCategories = state.allCategories,
-                selectedCategories = state.selectedCategories, // В State должно быть Set<String>
-                onCategoryClick = viewModel::toggleCategory    // В VM должна быть fun toggleCategory(String)
+            SearchBar(
+                query = state.searchQuery,
+                onQueryChange = viewModel::onSearchQueryChanged,
+                modifier = Modifier.weight(1f) // Занимает всё свободное место
             )
-            // Список рейтингов
-            RatingFilterRow(
-                selectedRating = state.selectedRating,
-                onRatingSelect = viewModel::onRatingSelected
-            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            IconButton(
+                onClick = { viewModel.toggleSortByPrice() },
+                modifier = Modifier
+                    .size(56.dp) // Размер сопоставим с высотой SearchBar
+                    .background(
+                        color = if (state.priceSortOrder != CatalogViewModel.PriceSortOrder.NONE)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+            ) {
+                // Выбираем иконку в зависимости от состояния
+                val icon = when (state.priceSortOrder) {
+                    CatalogViewModel.PriceSortOrder.ASCENDING -> Icons.Default.ArrowUpward // Цена вверх
+                    CatalogViewModel.PriceSortOrder.DESCENDING -> Icons.Default.ArrowDownward // Цена вниз
+                    CatalogViewModel.PriceSortOrder.NONE -> Icons.Default.Sort // По умолчанию
+                }
+
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "Sort",
+                    tint = if (state.priceSortOrder != CatalogViewModel.PriceSortOrder.NONE)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+
+        // Фильтры категорий и рейтинга
+        CategoryFilterRow(
+            allCategories = state.allCategories,
+            selectedCategories = state.selectedCategories,
+            onCategoryClick = viewModel::toggleCategory
+        )
+        RatingFilterRow(
+            selectedRating = state.selectedRating,
+            onRatingSelect = viewModel::onRatingSelected
+        )
 
         // 3. Сетка товаров
         Box(modifier = Modifier.weight(1f)) {
@@ -119,7 +156,6 @@ fun CatalogScreen(
     }
 }
 
-// --- КОМПОНЕНТЫ ФИЛЬТРАЦИИ ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -194,15 +230,14 @@ fun RatingFilterRow(
 @Composable
 fun SearchBar(
     query: String,
-    onQueryChange: (String) -> Unit
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        placeholder = { Text("Поиск товаров...") },
+        modifier = modifier,
+        placeholder = { Text("Поиск...") },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = if (query.isNotEmpty()) {
             {
@@ -212,14 +247,9 @@ fun SearchBar(
             }
         } else null,
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-        )
+        shape = RoundedCornerShape(12.dp)
     )
 }
-
 @Composable
 fun ProductItem(
     product: ProductEntity,
