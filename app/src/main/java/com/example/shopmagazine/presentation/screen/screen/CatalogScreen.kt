@@ -59,34 +59,10 @@ fun CatalogScreen(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            IconButton(
-                onClick = { viewModel.toggleSortByPrice() },
-                modifier = Modifier
-                    .size(56.dp) // Размер сопоставим с высотой SearchBar
-                    .background(
-                        color = if (state.priceSortOrder != CatalogViewModel.PriceSortOrder.NONE)
-                            MaterialTheme.colorScheme.primaryContainer
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-            ) {
-                // Выбираем иконку в зависимости от состояния
-                val icon = when (state.priceSortOrder) {
-                    CatalogViewModel.PriceSortOrder.ASCENDING -> Icons.Default.ArrowUpward // Цена вверх
-                    CatalogViewModel.PriceSortOrder.DESCENDING -> Icons.Default.ArrowDownward // Цена вниз
-                    CatalogViewModel.PriceSortOrder.NONE -> Icons.Default.Sort // По умолчанию
-                }
-
-                Icon(
-                    imageVector = icon,
-                    contentDescription = "Sort",
-                    tint = if (state.priceSortOrder != CatalogViewModel.PriceSortOrder.NONE)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            SortMenu(
+                selectedSort = state.selectedSort,
+                onOptionSelected = viewModel::onSortOptionSelected
+            )
         }
 
         // Фильтры категорий и рейтинга
@@ -122,7 +98,7 @@ fun CatalogScreen(
                 }
             }
 
-            // Отображение ошибки
+
             state.error?.let { errorMsg ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -454,6 +430,54 @@ fun ItemBottomSheet(product: ProductEntity, onAddToCartClick: () -> Unit) {
                 Icon(Icons.Default.AddShoppingCart, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("В корзину", fontSize = 16.sp)
+            }
+        }
+    }
+}
+@Composable
+fun SortMenu(
+    selectedSort: CatalogViewModel.SortOption,
+    onOptionSelected: (CatalogViewModel.SortOption) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .background(
+                    color = if (selectedSort != CatalogViewModel.SortOption.NONE)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Icon(Icons.Default.Sort, contentDescription = "Сортировка")
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+        ) {
+            CatalogViewModel.SortOption.values().forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option.title,
+                            fontWeight = if (selectedSort == option) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    },
+                    leadingIcon = {
+                        if (selectedSort == option) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                )
             }
         }
     }

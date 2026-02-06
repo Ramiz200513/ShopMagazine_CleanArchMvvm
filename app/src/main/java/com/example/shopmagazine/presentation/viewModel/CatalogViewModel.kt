@@ -22,33 +22,45 @@ data class CatalogState(
     val selectedCategories: Set<String> = emptySet(),
     val searchQuery: String = "",
     val selectedRating: Int? = null,
-    val priceSortOrder: CatalogViewModel.PriceSortOrder = CatalogViewModel.PriceSortOrder.NONE
+    val selectedSort: CatalogViewModel.SortOption = CatalogViewModel.SortOption.NONE
 )
 
 @HiltViewModel
 class CatalogViewModel @Inject constructor(
     private val repository: ProductRepository
 ) : ViewModel() {
-    enum class PriceSortOrder {
-        NONE,
-        ASCENDING,
-        DESCENDING
+
+    enum class SortOption(val title: String) {
+        NONE("По умолчанию"),
+        PRICE_ASC("Дешевле"),
+        PRICE_DESC("Дороже"),
+        ALPHABET("По алфавиту (А-Я)"),
+        RATING("По рейтингу")
     }
-    private val _priceSortOrder = MutableStateFlow(PriceSortOrder.NONE)
+
+    private val _selectedSort = MutableStateFlow(SortOption.NONE)
     private val _isLoading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
     private val _searchQuery = MutableStateFlow("")
     private val _selectedCategories = MutableStateFlow<Set<String>>(emptySet())
     private val _selectedRating = MutableStateFlow<Int?>(null)
 
+    // Вспомогательный класс для передачи параметров
+    // Исправлено: типы параметров должны соответствовать SortOption
+    private data class FilterParams(
+        val query: String,
+        val categories: Set<String>,
+        val rating: Int?,
+        val sortOption: SortOption
+    )
 
     private val filters = combine(
         _searchQuery,
         _selectedCategories,
         _selectedRating,
-        _priceSortOrder // Добавляем сюда enum
-    ) { query, categories, rating, sortOrder ->
-        FilterParams(query, categories, rating, sortOrder)
+        _selectedSort
+    ) { query, categories, rating, sort ->
+        FilterParams(query, categories, rating, sort)
     }
 
     val state: StateFlow<CatalogState> = combine(
@@ -59,50 +71,48 @@ class CatalogViewModel @Inject constructor(
     ) { products, isLoading, error, params ->
 
         // 1. Фильтрация
-        var filteredProducts = products.filter { product ->
+        val filteredProducts = products.filter { product ->
             val matchesSearch = product.title.contains(params.query, ignoreCase = true)
             val matchesCategory = params.categories.isEmpty() || product.category in params.categories
             val matchesRating = params.rating == null || product.rating.rate >= params.rating.toDouble()
+
             matchesSearch && matchesCategory && matchesRating
         }
 
-        // 2. Логика сортировки (3 состояния)
-        filteredProducts = when (params.sortOrder) {
-            PriceSortOrder.ASCENDING -> filteredProducts.sortedBy { it.price }
-            PriceSortOrder.DESCENDING -> filteredProducts.sortedByDescending { it.price }
-            PriceSortOrder.NONE -> filteredProducts // Оставляем как есть
+        // 2. Сортировка
+        // Исправлено: обращаемся к params.sortOption (как в data class выше)
+        val sortedProducts = when (params.sortOption) {
+            SortOption.PRICE_ASC -> filteredProducts.sortedBy { it.price }
+            SortOption.PRICE_DESC -> filteredProducts.sortedByDescending { it.price }
+            SortOption.ALPHABET -> filteredProducts.sortedBy { it.title }
+            SortOption.RATING -> filteredProducts.sortedByDescending { it.rating.rate }
+            SortOption.NONE -> filteredProducts
         }
 
         CatalogState(
-            products = filteredProducts,
+            products = sortedProducts,
             isLoading = isLoading,
             error = error,
             allCategories = products.map { it.category }.distinct(),
             selectedCategories = params.categories,
             searchQuery = params.query,
             selectedRating = params.rating,
-            priceSortOrder = params.sortOrder // Передаем состояние в UI
+            selectedSort = params.sortOption
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CatalogState(isLoading = true))
-
-    fun toggleSortByPrice() {
-        _priceSortOrder.value = when (_priceSortOrder.value) {
-            PriceSortOrder.NONE -> PriceSortOrder.ASCENDING
-            PriceSortOrder.ASCENDING -> PriceSortOrder.DESCENDING
-            PriceSortOrder.DESCENDING -> PriceSortOrder.NONE
-        }
-    }
-
-    // Вспомогательный класс для передачи параметров
-    data class FilterParams(
-        val query: String,
-        val categories: Set<String>,
-        val rating: Int?,
-        val sortOrder: PriceSortOrder
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = CatalogState(isLoading = true)
     )
 
-    // ... остальные функции (loadProducts, toggleCategory и т.д. остаются без изменений)
-    init { loadProducts() }
+    init {
+        loadProducts()
+    }
+
+    // Добавлена функция для смены сортировки
+    fun onSortOptionSelected(option: SortOption) {
+        _selectedSort.value = option
+    }
 
     fun toggleCategory(category: String) {
         val current = _selectedCategories.value
@@ -113,19 +123,27 @@ class CatalogViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            try { repository.refreshProducts() }
-            catch (e: Exception) { _error.value = "Ошибка: ${e.localizedMessage}" }
-            finally { _isLoading.value = false }
+            try {
+                repository.refreshProducts()
+            } catch (e: Exception) {
+                _error.value = "Ошибка: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
-    fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
 
     fun onRatingSelected(rating: Int?) {
         _selectedRating.value = if (_selectedRating.value == rating) null else rating
     }
 
     fun addToCart(product: ProductEntity) {
-        viewModelScope.launch { repository.addToCart(product.id) }
+        viewModelScope.launch {
+            repository.addToCart(product.id)
+        }
     }
 }
