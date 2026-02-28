@@ -6,7 +6,7 @@ import com.example.shopmagazine.data.local.entities.CartItemEntity
 import com.example.shopmagazine.data.local.entities.ProductEntity
 import com.example.shopmagazine.data.local.model.CartWithProduct
 import com.example.shopmagazine.data.mappers.toEntity
-import com.example.shopmagazine.data.network.ProductsApi // <-- Важный импорт!
+import com.example.shopmagazine.data.network.ProductsApi
 import com.example.shopmagazine.domain.repository.ProductRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
